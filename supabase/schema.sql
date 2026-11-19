@@ -1,0 +1,1 @@
+-- TODO: Esquema de base de datos para Supabase (tabla productos, RLS, Storage)
