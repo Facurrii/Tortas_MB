@@ -1,1 +1,42 @@
 @import "tailwindcss";
+
+/* Paleta sacada del logo de Dulce Victorino */
+@theme {
+  --color-fondo: #fbf3f5;
+  --color-crema: #fbf1e8;
+  --color-rosa: #f7dde3;
+  --color-acento: #b65e74;
+  --color-acento-oscuro: #9c4b60;
+  --color-lila: #6062c8;
+  --color-lila-suave: #e8e7f8;
+  --color-texto: #231d2d;
+  --color-gris: #6e6478;
+  --color-gris-claro: #8c8296;
+
+  --font-titulo: "Fraunces", Georgia, serif;
+  --font-cuerpo: "Nunito", system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 16px;
+}
+
+body {
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: var(--font-cuerpo);
+  -webkit-font-smoothing: antialiased;
+}
+
+.sin-scrollbar {
+  scrollbar-width: none;
+}
+.sin-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-lila);
+  outline-offset: 2px;
+}
