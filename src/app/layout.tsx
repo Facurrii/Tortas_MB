@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "Dulce Victorino · Cositas ricas para el mate y tus eventos",
   description:
     "Materas, tartas, box y tortas hechas a pedido en Río Cuarto. Elegí lo que te guste y encargalo por WhatsApp.",
-  icons: { icon: "/img/logo.png", apple: "/img/logo.png" },
   openGraph: {
     title: "Dulce Victorino",
     description: "Cositas ricas para el mate y tus eventos · Río Cuarto",
