@@ -42,27 +42,54 @@ export default function FormProducto({
   const [destacado, setDestacado] = useState(p?.destacado ?? false);
   const [orden, setOrden] = useState(String(p?.orden ?? 0));
   const [imagenUrl, setImagenUrl] = useState(p?.imagen_url ?? "");
-  const [subiendo, setSubiendo] = useState(false);
+  const [estadoFoto, setEstadoFoto] = useState(""); // "" | "Preparando foto…" | "Subiendo…"
+  const [vistaPrevia, setVistaPrevia] = useState("");
+  const subiendo = estadoFoto !== "";
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
-  async function subirFoto(archivo: File) {
-    setError("");
-    setSubiendo(true);
-    try {
-      const comprimida = await prepararFoto(archivo);
-      const ruta = `${crypto.randomUUID()}.jpg`;
-      const { error } = await supabase.storage.from(BUCKET_FOTOS).upload(ruta, comprimida, {
+  /** Sube a Storage reintentando: si la sesión venció (celular en segundo plano) la renueva. */
+  async function subirAStorage(ruta: string, foto: Blob) {
+    let ultimo: unknown;
+    for (let intento = 1; intento <= 3; intento++) {
+      const { data } = await supabase.auth.getSession(); // renueva el token si venció
+      if (!data.session) throw new ErrorFoto("Se cerró tu sesión. Volvé a entrar al panel y probá de nuevo.");
+      const { error } = await supabase.storage.from(BUCKET_FOTOS).upload(ruta, foto, {
         contentType: "image/jpeg",
         cacheControl: "31536000",
+        upsert: true,
       });
-      if (error) throw error;
+      if (!error) return;
+      ultimo = error;
+      console.warn(`[foto] intento ${intento} falló`, error);
+      if (/jwt|token|auth|row-level|unauthori|403|401/i.test(error.message)) await supabase.auth.refreshSession();
+      await new Promise((r) => setTimeout(r, 800 * intento));
+    }
+    throw ultimo;
+  }
+
+  async function subirFoto(archivo: File) {
+    setError("");
+    setEstadoFoto("Preparando foto…");
+    let previa = "";
+    try {
+      const comprimida = await prepararFoto(archivo);
+      previa = URL.createObjectURL(comprimida);
+      setVistaPrevia(previa); // se ve al toque, aunque la subida tarde
+      setEstadoFoto("Subiendo…");
+      const ruta = `${crypto.randomUUID()}.jpg`;
+      await subirAStorage(ruta, comprimida);
       setImagenUrl(supabase.storage.from(BUCKET_FOTOS).getPublicUrl(ruta).data.publicUrl);
     } catch (e) {
       console.error(e);
-      setError(e instanceof ErrorFoto ? e.message : "No se pudo subir la foto. Revisá la conexión y probá de nuevo.");
+      const detalle = e instanceof Error ? e.message : String(e);
+      setError(
+        e instanceof ErrorFoto ? e.message : `No se pudo subir la foto. Revisá la conexión y probá de nuevo. (${detalle})`
+      );
     } finally {
-      setSubiendo(false);
+      setEstadoFoto("");
+      setVistaPrevia("");
+      if (previa) URL.revokeObjectURL(previa);
     }
   }
 
@@ -121,12 +148,18 @@ export default function FormProducto({
       {/* Foto */}
       <div className="flex items-center gap-4">
         <div className="size-24 shrink-0 overflow-hidden rounded-2xl bg-rosa">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {imagenUrl && <img src={imagenUrl} alt="" className="size-full object-cover" />}
+          {(vistaPrevia || imagenUrl) && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={vistaPrevia || imagenUrl}
+              alt=""
+              className={`size-full object-cover ${vistaPrevia ? "animate-pulse opacity-70" : ""}`}
+            />
+          )}
         </div>
         <div className="flex flex-col gap-2">
-          <label className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border-[1.5px] border-lila-suave px-4 text-sm font-extrabold hover:border-lila/50">
-            {subiendo ? "Subiendo…" : imagenUrl ? "Cambiar foto" : "Subir foto"}
+          <label className={`inline-flex min-h-11 items-center rounded-xl ${subiendo ? "cursor-wait opacity-70" : "cursor-pointer"} border-[1.5px] border-lila-suave px-4 text-sm font-extrabold hover:border-lila/50`}>
+            {estadoFoto || (imagenUrl ? "Cambiar foto" : "Subir foto")}
             <input
               type="file"
               accept={FORMATOS_ACEPTADOS}

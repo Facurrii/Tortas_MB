@@ -33,20 +33,43 @@ async function decodificar(blob: Blob): Promise<ImageBitmap | HTMLImageElement> 
   }
 }
 
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Lee el archivo completo a memoria. Las fotos que están en la nube
+ * (Google Fotos, iCloud con "optimizar almacenamiento") a veces no se pueden
+ * leer en el primer intento porque el celular todavía las está bajando:
+ * reintentamos unas veces antes de dar error.
+ */
+async function leerArchivo(archivo: File): Promise<Blob> {
+  let ultimo: unknown;
+  for (let intento = 0; intento < 5; intento++) {
+    try {
+      const datos = await archivo.arrayBuffer();
+      if (datos.byteLength > 0) return new Blob([datos], { type: archivo.type });
+    } catch (e) {
+      ultimo = e;
+    }
+    await esperar(700 * (intento + 1));
+  }
+  console.error("[foto] no se pudo leer", ultimo);
+  throw new ErrorFoto("El celular no terminó de cargar esa foto. Esperá unos segundos y probá de nuevo.");
+}
+
 export async function prepararFoto(archivo: File): Promise<Blob> {
   if (archivo.size > TAMANO_MAX_MB * 1024 * 1024) {
     throw new ErrorFoto(`La foto pesa más de ${TAMANO_MAX_MB} MB.`);
   }
 
-  let origen: Blob = archivo;
+  let origen: Blob = await leerArchivo(archivo);
   if (esHeic(archivo)) {
     // Safari (iPhone/Mac) ya sabe leer HEIC; el resto necesita convertirla.
     try {
-      await createImageBitmap(archivo);
+      (await createImageBitmap(origen)).close();
     } catch {
       const { heicTo } = await import("heic-to/next");
       try {
-        origen = await heicTo({ blob: archivo, type: "image/jpeg", quality: 0.92 });
+        origen = await heicTo({ blob: origen, type: "image/jpeg", quality: 0.92 });
       } catch {
         throw new ErrorFoto("No se pudo convertir la foto de iPhone. Probá exportarla como JPG.");
       }
